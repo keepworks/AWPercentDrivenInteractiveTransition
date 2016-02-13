@@ -34,7 +34,7 @@
 
 #pragma mark - Initialization
 - (instancetype)initWithAnimator:(id<UIViewControllerAnimatedTransitioning>)animator {
-    
+
     self = [super init];
     if (self) {
         [self _commonInit];
@@ -43,7 +43,7 @@
     return self;
 }
 - (instancetype)init {
-    
+
     self = [super init];
     if (self) {
         [self _commonInit];
@@ -63,10 +63,10 @@
 }
 - (void)startInteractiveTransition:(id<UIViewControllerContextTransitioning>)transitionContext {
     NSAssert(_animator, @"The animator property must be set at the start of an interactive transition");
-    
+
     _transitionContext = transitionContext;
     [_transitionContext containerView].layer.speed = 0;
-    
+
     [_animator animateTransition:_transitionContext];
 }
 - (void)updateInteractiveTransition:(CGFloat)percentComplete {
@@ -77,16 +77,16 @@
     [self _completeTransition];
 }
 - (void)finishInteractiveTransition {
-    
+
     /*CALayer *layer = [_transitionContext containerView].layer;
      layer.speed = 1;
-     
+
      CFTimeInterval pausedTime = [layer timeOffset];
      layer.timeOffset = 0.0;
      layer.beginTime = 0.0; // Need to reset to 0 to avoid flickering :S
      CFTimeInterval timeSincePause = [layer convertTime:CACurrentMediaTime() fromLayer:nil] - pausedTime;
      layer.beginTime = timeSincePause;*/
-    
+
     [_transitionContext finishInteractiveTransition];
     [self _completeTransition];
 }
@@ -97,7 +97,7 @@
 #pragma mark - Private methods
 - (void)setPercentComplete:(CGFloat)percentComplete {
     _percentComplete = percentComplete;
-    
+
     [self _setTimeOffset:percentComplete*[self duration]];
     [_transitionContext updateInteractiveTransition:percentComplete];
 }
@@ -109,11 +109,11 @@
     [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 }
 - (void)_tickAnimation {
-    
+
     NSTimeInterval timeOffset = [self _timeOffset];
     NSTimeInterval tick = [_displayLink duration]*[self completionSpeed];
     timeOffset += [_transitionContext transitionWasCancelled] ? -tick : tick;
-    
+
     if (timeOffset < 0 || timeOffset > [self duration]) {
         [self _transitionFinished];
     } else {
@@ -125,16 +125,29 @@
 }
 - (void)_transitionFinished {
     [_displayLink invalidate];
-    
+
     CALayer *layer = [_transitionContext containerView].layer;
     layer.speed = 1;
-    
+
     if (![_transitionContext transitionWasCancelled]) {
         CFTimeInterval pausedTime = [layer timeOffset];
         layer.timeOffset = 0.0;
         layer.beginTime = 0.0; // Need to reset to 0 to avoid flickering :S
         CFTimeInterval timeSincePause = [layer convertTime:CACurrentMediaTime() fromLayer:nil] - pausedTime;
         layer.beginTime = timeSincePause;
+    } else {
+        // When cancelling the animation, we want to make sure the toView doesn't flash above the fromView in the animation completion block
+        UIView *toView, *fromView;
+        toView = [_transitionContext viewControllerForKey:UITransitionContextToViewControllerKey].view;
+        fromView = [_transitionContext viewControllerForKey:UITransitionContextFromViewControllerKey].view;
+
+        // Here, the toView corresponds to the view that was going to be presented but was then cancelled.
+        // Therefore, we set it's alpha to and bring the original view to the front of the container view and back to its original position.
+        toView.alpha = 0;
+        fromView.alpha = 1.0;
+        fromView.transform = CGAffineTransformIdentity;
+
+        [[_transitionContext containerView] bringSubviewToFront:fromView];
     }
 }
 
